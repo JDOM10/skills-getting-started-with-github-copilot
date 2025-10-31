@@ -20,24 +20,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const spotsLeft = details.max_participants - details.participants.length;
 
-        // Participants section HTML
-        const participantsHTML = `
-          <div class="activity-card-participants">
-            <div class="activity-card-participants-title">Participants:</div>
-            ${
-              details.participants.length > 0
-                ? `<ul class="activity-card-participants-list">
-                    ${details.participants
-                      .map(
-                        (participant) =>
-                          `<li>${participant}</li>`
-                      )
-                      .join("")}
-                  </ul>`
-                : `<div class="activity-card-participants-list" style="color:#888;">No participants yet.</div>`
-            }
-          </div>
-        `;
+        // Participants section HTML (no bullet points, with delete icon)
+        let participantsHTML = `<div class="activity-card-participants">
+          <div class="activity-card-participants-title">Participants:</div>`;
+        if (details.participants.length > 0) {
+          participantsHTML += `<div class="activity-card-participants-list no-bullets">`;
+          details.participants.forEach(participant => {
+            participantsHTML += `
+              <span class="participant-item">
+                <span>${participant}</span>
+                <span class="delete-participant" title="Remove" data-activity="${encodeURIComponent(name)}" data-email="${encodeURIComponent(participant)}">&#128465;</span>
+              </span>
+            `;
+          });
+          participantsHTML += `</div>`;
+        } else {
+          participantsHTML += `<div class="activity-card-participants-list" style="color:#888;">No participants yet.</div>`;
+        }
+        participantsHTML += `</div>`;
 
         activityCard.innerHTML = `
           <h4>${name}</h4>
@@ -54,6 +54,27 @@ document.addEventListener("DOMContentLoaded", () => {
         option.value = name;
         option.textContent = name;
         activitySelect.appendChild(option);
+      });
+
+      // Add event listeners for delete icons
+      document.querySelectorAll(".delete-participant").forEach(icon => {
+        icon.addEventListener("click", async (e) => {
+          const activity = icon.getAttribute("data-activity");
+          const email = icon.getAttribute("data-email");
+          if (confirm(`Remove ${decodeURIComponent(email)} from ${decodeURIComponent(activity)}?`)) {
+            try {
+              const response = await fetch(`/activities/${activity}/unregister?email=${email}`, { method: "POST" });
+              const result = await response.json();
+              if (response.ok) {
+                fetchActivities();
+              } else {
+                alert(result.detail || "Failed to remove participant.");
+              }
+            } catch (err) {
+              alert("Error removing participant.");
+            }
+          }
+        });
       });
     } catch (error) {
       activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
@@ -78,10 +99,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const result = await response.json();
 
+
       if (response.ok) {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        // Refresh activities list to show new participant
+        fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
